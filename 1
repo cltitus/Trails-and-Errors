@@ -1,0 +1,124 @@
+definition(
+    name: "Nightstand Night Lights",
+    namespace: "cltitus",
+    author: "Christopher Titus",
+    description: "Nightstand Motion Nightlight",
+    category: "Trials and Errors",
+    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Partner/hue.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png"
+)
+preferences {
+    section("Control these bulbs...") {
+            input "hues", "capability.colorControl", title: "Which Hue Bulbs?", required:true, multiple:true
+        }
+    section("Choose light effects...")
+            {
+                input "color", "enum", title: "Hue Color?", required: false, multiple:false, options: [
+                    "Soft White",
+                    "White",
+                    "Daylight",
+                    "Warm White",
+                    "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
+                input "lightLevel", "enum", title: "Light Level?", required: true, options: ["10","20","30","40","50","60","70","80","90","100"]
+            }
+    section("Choose Motion Sensors...") {
+        input "motionDectors", "capability.motionSensor", title: "Motion"
+    }
+    section("Delay...") {
+        input "offDelay", "number", title: "How many minutes after motion stops until lights turn off"
+    }
+
+}
+def installed() {
+	log.debug "Installed with settings: ${settings}"
+	initialize()
+}
+def updated() {
+	log.debug "Updated with settings: ${settings}"
+	unsubscribe()
+	initialize()
+}
+def initialize() {
+	subscribe(motionDectors, "motion", motionHandler)
+}
+def motionHandler(evt)
+{
+log.trace "evt: ${evt}"
+if (evt.value == "active")
+{
+	log.trace "active"
+  def hueColor = 70
+	def saturation = 100
+	switch(color) {
+			case "White":
+				hueColor = 52
+				saturation = 19
+				break;
+			case "Daylight":
+				hueColor = 53
+				saturation = 91
+				break;
+			case "Soft White":
+				hueColor = 23
+				saturation = 56
+				break;
+			case "Warm White":
+				hueColor = 20
+				saturation = 80
+				break;
+	 	 	case "Blue":
+				hueColor = 70
+				break;
+			case "Green":
+				hueColor = 39
+				break;
+			case "Yellow":
+				hueColor = 25
+				break;
+			case "Orange":
+				hueColor = 10
+				break;
+			case "Purple":
+				hueColor = 75
+				break;
+			case "Pink":
+				hueColor = 83
+				break;
+			case "Red":
+				hueColor = 100
+				break;
+	}
+	if (color != "Hue Bridge")
+    {
+        def newValue = [hue: hueColor, saturation: saturation, level: lightLevel as Integer ?: 100]
+        hues*.setColor(newValue)
+		log.debug "new value = $newValue"
+    }
+    else
+    {
+    	hues*.on()
+    }
+	state.motionStoppedAt = -99    
+}
+else if (evt.value == "inactive")
+{
+	log.trace "inactive"
+    //runIn(60, turnOfflights)
+    state.motionStoppedAt = now()
+    turnOfflights()
+}
+}
+def turnOfflights() {
+    def elapsed = now() - state.motionStoppedAt
+    def threshold = (60000 * offDelay) 
+    log.trace "elapsed: ${elapsed}"
+    log.trace "threshold: ${threshold}"
+    if (elapsed >= threshold && state.motionStoppedAt != -99)
+    {
+    	hues*.off()
+    }
+    else 
+    {
+    	runIn(60, turnOfflights)
+    }
+}
